@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>基地攻击修复测试</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        
+        .test-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .test-section {
+            background: #2a2a2a;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #444;
+        }
+        
+        .test-title {
+            color: #4CAF50;
+            font-size: 20px;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        
+        .test-result {
+            background: #333;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .success {
+            color: #4CAF50;
+        }
+        
+        .warning {
+            color: #FF9800;
+        }
+        
+        .error {
+            color: #f44336;
+        }
+        
+        .info {
+            color: #2196F3;
+        }
+        
+        .test-checklist {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .test-checklist li {
+            padding: 5px 0;
+            border-bottom: 1px solid #444;
+        }
+        
+        .checkmark {
+            color: #4CAF50;
+            margin-right: 10px;
+        }
+        
+        .cross {
+            color: #f44336;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1 style="text-align: center; color: #4CAF50;">🏗️ 基地攻击修复验证</h1>
+        
+        <div class="test-section">
+            <div class="test-title">问题诊断</div>
+            <div class="test-result">
+                <strong>原问题：</strong> 敌人的大本营不掉血<br>
+                <strong>根本原因：</strong> 单位攻击的是临时的enemyBase副本，而不是真正的this.enemyBase对象<br>
+                <strong>修复方案：</strong> 直接使用真正的敌人基地对象进行攻击目标设置
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">修复内容检查</div>
+            <ul class="test-checklist">
+                <li><span class="checkmark">✓</span><strong>handleAutoTargeting修复：</strong> 直接使用this.enemyBase而不是临时副本</li>
+                <li><span class="checkmark">✓</span><strong>基地对象属性：</strong> 添加faction和type属性确保克制关系正确</li>
+                <li><span class="checkmark">✓</span><strong>所有基地初始化：</strong> 在constructor、startGame、updateLevel中都添加正确属性</li>
+                <li><span class="checkmark">✓</span><strong>攻击日志：</strong> 更新getUnitDisplayName支持基地类型显示</li>
+                <li><span class="checkmark">✓</span><strong>地形优势：</strong> 确认使用正确的基地引用计算距离</li>
+            </ul>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">技术细节</div>
+            <div class="test-result">
+                <strong>修复前：</strong><br>
+                <code style="color: #f44336;">
+                const enemyBase = { x: this.enemyBase.x, y: this.enemyBase.y, type: 'enemyBase', health: this.enemyBase.health };<br>
+                playerUnit.setTarget(enemyBase); // 攻击临时副本！
+                </code>
+                <br><br>
+                <strong>修复后：</strong><br>
+                <code style="color: #4CAF50;">
+                playerUnit.setTarget(this.enemyBase); // 攻击真正的基地！
+                </code>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">游戏测试指南</div>
+            <div class="test-result">
+                <ol>
+                    <li><strong>启动游戏：</strong> 访问游戏页面，开始新游戏</li>
+                    <li><strong>创建攻击单位：</strong> 训练一些士兵或坦克</li>
+                    <li><strong>手动攻击基地：</strong> 右键点击敌方基地（红色圆圈）</li>
+                    <li><strong>观察战斗日志：</strong> 查看底部是否显示"攻击敌方基地"</li>
+                    <li><strong>检查基地血量：</strong> 观察敌方基地血量是否下降</li>
+                    <li><strong>自动攻击测试：</strong> 让AI单位接近基地，观察自动攻击</li>
+                </ol>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">预期结果</div>
+            <div class="test-result">
+                <div class="success">
+                    ✅ <strong>战斗日志显示：</strong> "玩家士兵 攻击 敌方基地，造成 XX 伤害"<br>
+                    ✅ <strong>基地血量下降：</strong> 敌方基地血量条应该明显减少<br>
+                    ✅ <strong>攻击距离有效：</strong> 单位在攻击范围内时能正常攻击<br>
+                    ✅ <strong>克制关系生效：</strong> 不同单位对基地的克制效果应该不同<br>
+                    ✅ <strong>地形优势生效：</strong> 基地附近单位有防御加成
+                </div>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">故障排除</div>
+            <div class="test-result">
+                <div class="warning">
+                    <strong>如果基地仍然不掉血：</strong><br>
+                    1. 检查浏览器控制台是否有JavaScript错误<br>
+                    2. 确认单位确实有攻击目标（攻击范围内）<br>
+                    3. 验证战斗日志中是否显示攻击信息<br>
+                    4. 检查单位攻击冷却时间设置
+                </div>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">代码验证</div>
+            <div class="test-result">
+                <strong>验证要点：</strong><br>
+                1. <code>this.enemyBase</code> 有 <code>faction: 'ai'</code> 和 <code>type: 'enemyBase'</code><br>
+                2. <code>this.playerBase</code> 有 <code>faction: 'player'</code> 和 <code>type: 'playerBase'</code><br>
+                3. 单位攻击时使用 <code>unit.setTarget(this.enemyBase)</code><br>
+                4. 伤害正确应用到 <code>target.health -= damage</code><br>
+                5. 胜利条件正确检查 <code>this.enemyBase.health <= 0</code>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 自动显示页面加载时间
+        window.onload = function() {
+            console.log('基地攻击修复验证页面加载完成');
+            console.log('修复时间:', new Date().toLocaleString());
+        };
+    </script>
+</body>
+</html>

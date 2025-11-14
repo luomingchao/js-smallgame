@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>策略系统测试工具</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: white;
+            margin: 0;
+            padding: 20px;
+        }
+        .test-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+        }
+        .combat-arena {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .unit-matchup {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .status {
+            font-family: monospace;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .counter-relationship {
+            background: rgba(255, 215, 0, 0.2);
+            border: 2px solid #FFD700;
+        }
+        .vulnerable-relationship {
+            background: rgba(255, 69, 0, 0.2);
+            border: 2px solid #FF4500;
+        }
+        .normal-relationship {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid #888;
+        }
+        #consoleOutput {
+            height: 200px;
+            overflow-y: auto;
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            font-family: monospace;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🎯 策略系统测试工具</h1>
+        
+        <div class="test-section">
+            <h2>⚖️ 单位克制关系演示</h2>
+            <div class="combat-arena">
+                <div class="unit-matchup counter-relationship">
+                    <h3>⚔️ 士兵 vs 🚗 坦克</h3>
+                    <p><strong>士兵克制坦克</strong></p>
+                    <p>伤害: 30 (20 × 1.5)</p>
+                    <button onclick="simulateCombat('soldier', 'tank')">模拟战斗</button>
+                </div>
+                <div class="unit-matchup vulnerable-relationship">
+                    <h3>🚗 坦克 vs 👷 工人</h3>
+                    <p><strong>坦克克制工人</strong></p>
+                    <p>伤害: 35 (50 × 0.7)</p>
+                    <button onclick="simulateCombat('tank', 'worker')">模拟战斗</button>
+                </div>
+                <div class="unit-matchup counter-relationship">
+                    <h3>👷 工人 vs ⚔️ 士兵</h3>
+                    <p><strong>工人克制士兵</strong></p>
+                    <p>伤害: 20 (无攻击力)</p>
+                    <button onclick="simulateCombat('worker', 'soldier')">模拟战斗</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>💰 资源系统测试</h2>
+            <canvas id="resourceCanvas" width="600" height="300"></canvas>
+            <div>
+                <button onclick="testResourceGeneration()">测试资源生成</button>
+                <button onclick="testWorkerCollection()">测试工人采集</button>
+                <button onclick="showResourcePoints()">显示资源点</button>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>🧠 AI策略测试</h2>
+            <div>
+                <button onclick="testAITargetSelection()">测试AI目标选择</button>
+                <button onclick="testAIResourceManagement()">测试AI资源管理</button>
+                <button onclick="testAITactics()">测试AI战术</button>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>📊 战斗效果测试</h2>
+            <div id="battleResults"></div>
+            <button onclick="testBattleChain()">测试克制链</button>
+            <button onclick="testBaseDefense()">测试基地防御</button>
+        </div>
+
+        <div class="test-section">
+            <h2>📋 控制台输出</h2>
+            <div id="consoleOutput"></div>
+            <button onclick="clearConsole()">清空控制台</button>
+        </div>
+    </div>
+
+    <script>
+        // 日志功能
+        function log(message, type = 'info') {
+            const consoleDiv = document.getElementById('consoleOutput');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.style.color = type === 'error' ? '#ff6b6b' : 
+                                type === 'success' ? '#51cf66' : 
+                                type === 'counter' ? '#ffd700' : '#0f0';
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            consoleDiv.appendChild(logEntry);
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+            console.log(message);
+        }
+
+        function clearConsole() {
+            document.getElementById('consoleOutput').innerHTML = '';
+        }
+
+        // 模拟单位克制关系
+        function getTypeRelation(attackerType, targetType) {
+            const relations = {
+                'soldier': { 'tank': 'counter', 'soldier': 'normal', 'worker': 'vulnerable' },
+                'tank': { 'worker': 'counter', 'soldier': 'vulnerable', 'tank': 'normal' },
+                'worker': { 'soldier': 'counter', 'tank': 'vulnerable', 'worker': 'normal' }
+            };
+            return relations[attackerType]?.[targetType] || 'normal';
+        }
+
+        function calculateDamage(attackerType, targetType, baseDamage) {
+            let actualDamage = baseDamage;
+            const relation = getTypeRelation(attackerType, targetType);
+            
+            switch(relation) {
+                case 'counter':
+                    actualDamage *= 1.5;
+                    break;
+                case 'vulnerable':
+                    actualDamage *= 0.7;
+                    break;
+            }
+            
+            return Math.floor(actualDamage);
+        }
+
+        function getUnitNames(type) {
+            const names = {
+                'soldier': '士兵',
+                'tank': '坦克',
+                'worker': '工人'
+            };
+            return names[type] || type;
+        }
+
+        // 模拟战斗
+        function simulateCombat(attackerType, targetType) {
+            const baseDamage = {
+                'soldier': 20,
+                'tank': 50,
+                'worker': 0
+            }[attackerType];
+
+            const damage = calculateDamage(attackerType, targetType, baseDamage);
+            const relation = getTypeRelation(attackerType, targetType);
+            const attackerName = getUnitNames(attackerType);
+            const targetName = getUnitNames(targetType);
+            
+            let logMessage = `${attackerName} 攻击 ${targetName}`;
+            let logType = 'info';
+            
+            if (relation === 'counter') {
+                logMessage += `，克制攻击造成 ${damage} 伤害！`;
+                logType = 'counter';
+            } else if (relation === 'vulnerable') {
+                logMessage += `，被克制只造成 ${damage} 伤害...`;
+                logType = 'error';
+            } else {
+                logMessage += `，正常造成 ${damage} 伤害`;
+            }
+            
+            log(logMessage, logType);
+            
+            // 显示战斗结果
+            showBattleResult(attackerType, targetType, damage, relation);
+        }
+
+        function showBattleResult(attackerType, targetType, damage, relation) {
+            const battleResults = document.getElementById('battleResults');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `battle-result ${relation}-relationship`;
+            resultDiv.innerHTML = `
+                <h4>${getUnitNames(attackerType)} → ${getUnitNames(targetType)}</h4>
+                <p><strong>关系:</strong> ${relation === 'counter' ? '克制' : relation === 'vulnerable' ? '被克制' : '普通'}</p>
+                <p><strong>伤害:</strong> ${damage}</p>
+            `;
+            battleResults.insertBefore(resultDiv, battleResults.firstChild);
+            
+            // 限制显示数量
+            while (battleResults.children.length > 5) {
+                battleResults.removeChild(battleResults.lastChild);
+            }
+        }
+
+        // 资源系统测试
+        function testResourceGeneration() {
+            log('测试资源生成系统...', 'info');
+            let playerMoney = 1500;
+            let aiMoney = 1500;
+            
+            // 模拟30秒的资源增长
+            for (let second = 0; second < 30; second++) {
+                playerMoney += 10; // 玩家基础收入
+                aiMoney += 15; // AI收入
+                
+                if (second % 10 === 0) {
+                    log(`第${second}秒 - 玩家: ${Math.floor(playerMoney)} 金币, AI: ${Math.floor(aiMoney)} 金币`, 'success');
+                }
+            }
+            
+            log('资源生成测试完成', 'success');
+        }
+
+        function testWorkerCollection() {
+            log('测试工人采集系统...', 'info');
+            
+            const resourcePoints = [
+                { x: 120, y: 250, type: 'gold', collectionRadius: 40 },
+                { x: 140, y: 350, type: 'gold', collectionRadius: 40 },
+                { x: 180, y: 200, type: 'energy', collectionRadius: 40 }
+            ];
+            
+            let totalCollected = 0;
+            let workerX = 80, workerY = 300; // 初始工人位置
+            
+            // 模拟工人移动到资源点并采集
+            resourcePoints.forEach(point => {
+                const distance = Math.sqrt(Math.pow(workerX - point.x, 2) + Math.pow(workerY - point.y, 2));
+                log(`${point.type === 'gold' ? '金币' : '能量'}点距离: ${Math.floor(distance)}像素`, 'info');
+                
+                if (distance <= point.collectionRadius) {
+                    const collected = 20; // 采集速率
+                    totalCollected += collected;
+                    log(`工人采集${point.type === 'gold' ? '金币' : '能量'}: +${collected}`, 'success');
+                } else {
+                    log(`工人距离${point.type === 'gold' ? '金币' : '能量'}点太远，无法采集`, 'error');
+                }
+                
+                workerX = point.x; // 移动到下一个资源点
+                workerY = point.y;
+            });
+            
+            log(`总采集量: ${totalCollected}`, 'success');
+        }
+
+        function showResourcePoints() {
+            const canvas = document.getElementById('resourceCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // 清空画布
+            ctx.fillStyle = '#001122';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制资源点
+            const resourcePoints = [
+                { x: 100, y: 150, type: 'gold', collectionRadius: 40 },
+                { x: 150, y: 200, type: 'gold', collectionRadius: 40 },
+                { x: 200, y: 100, type: 'energy', collectionRadius: 40 }
+            ];
+            
+            resourcePoints.forEach(point => {
+                // 绘制采集范围
+                ctx.strokeStyle = point.type === 'gold' ? '#ffff44' : '#44ffff';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, point.collectionRadius, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                // 绘制资源点
+                ctx.fillStyle = point.type === 'gold' ? '#ffff44' : '#44ffff';
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = ctx.fillStyle;
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, 20, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                
+                // 绘制图标
+                ctx.fillStyle = '#000';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(point.type === 'gold' ? '💰' : '⚡', point.x, point.y + 6);
+                
+                // 绘制标签
+                ctx.fillStyle = '#fff';
+                ctx.font = '12px Arial';
+                ctx.fillText(point.type === 'gold' ? '金币' : '能量', point.x, point.y + 35);
+            });
+            
+            log('资源点可视化完成', 'success');
+        }
+
+        // AI策略测试
+        function testAITargetSelection() {
+            log('测试AI目标选择算法...', 'info');
+            
+            const playerUnits = [
+                { type: 'soldier', x: 400, y: 200 },
+                { type: 'tank', x: 420, y: 180 },
+                { type: 'worker', x: 380, y: 220 }
+            ];
+            
+            const aiUnit = { type: 'tank', x: 500, y: 200 };
+            
+            // 模拟AI目标选择
+            let nearestUnit = null;
+            let nearestDistance = Infinity;
+            
+            playerUnits.forEach(unit => {
+                const distance = Math.sqrt(
+                    Math.pow(aiUnit.x - unit.x, 2) + Math.pow(aiUnit.y - unit.y, 2)
+                );
+                
+                if (distance < nearestDistance) {
+                    nearestDistance = distance;
+                    nearestUnit = unit;
+                }
+            });
+            
+            if (nearestUnit) {
+                log(`AI选择目标: ${getUnitNames(nearestUnit.type)} (距离: ${Math.floor(nearestDistance)}像素)`, 'success');
+                
+                // 检查克制关系
+                const relation = getTypeRelation(aiUnit.type, nearestUnit.type);
+                if (relation === 'counter') {
+                    log('AI选择了克制的目标，战术优秀！', 'counter');
+                } else if (relation === 'vulnerable') {
+                    log('AI选择的目标对AI不利，需要优化', 'error');
+                }
+            }
+        }
+
+        function testAIResourceManagement() {
+            log('测试AI资源管理系统...', 'info');
+            
+            let aiMoney = 1500;
+            const costs = { soldier: 100, tank: 300, worker: 50 };
+            
+            // 模拟AI决策
+            for (let i = 0; i < 10; i++) {
+                aiMoney += 15; // AI资源增长
+                
+                if (aiMoney >= 300) {
+                    // AI选择单位类型
+                    const rand = Math.random();
+                    let unitType;
+                    if (rand < 0.5) unitType = 'soldier';
+                    else if (rand < 0.8) unitType = 'tank';
+                    else unitType = 'worker';
+                    
+                    const cost = costs[unitType];
+                    if (aiMoney >= cost) {
+                        aiMoney -= cost;
+                        log(`AI创建${getUnitNames(unitType)}，花费${cost}，剩余${Math.floor(aiMoney)}`, 'success');
+                    }
+                }
+            }
+        }
+
+        function testAITactics() {
+            log('测试AI战术系统...', 'info');
+            
+            const tactics = ['defensive', 'balanced', 'aggressive', 'very_aggressive'];
+            const selectedTactic = tactics[Math.floor(Math.random() * tactics.length)];
+            
+            log(`AI选择战术: ${selectedTactic}`, 'success');
+            
+            switch(selectedTactic) {
+                case 'defensive':
+                    log('AI将优先防守基地，生产更多防御单位', 'info');
+                    break;
+                case 'aggressive':
+                    log('AI将积极进攻，优先攻击玩家单位', 'info');
+                    break;
+                case 'very_aggressive':
+                    log('AI将采取激进策略，直接攻击玩家基地', 'counter');
+                    break;
+                default:
+                    log('AI将平衡攻击和防守', 'info');
+            }
+        }
+
+        // 战斗效果测试
+        function testBattleChain() {
+            log('测试克制链战斗...', 'info');
+            
+            // 模拟完整的克制链：士兵→坦克→工人→士兵
+            log('开始克制链测试：士兵 vs 坦克', 'counter');
+            simulateCombat('soldier', 'tank');
+            
+            setTimeout(() => {
+                log('继续：坦克 vs 工人', 'counter');
+                simulateCombat('tank', 'worker');
+            }, 1000);
+            
+            setTimeout(() => {
+                log('完成：工人 vs 士兵', 'counter');
+                simulateCombat('worker', 'soldier');
+            }, 2000);
+        }
+
+        function testBaseDefense() {
+            log('测试基地防御机制...', 'info');
+            
+            // 模拟基地被攻击
+            const baseHealth = 1000;
+            let currentHealth = baseHealth;
+            
+            // 模拟敌方攻击
+            for (let attack = 1; attack <= 5; attack++) {
+                const damage = Math.floor(Math.random() * 30) + 20;
+                currentHealth -= damage;
+                
+                log(`攻击${attack}: 基地剩余血量 ${currentHealth}/${baseHealth}`, 
+                    currentHealth <= 200 ? 'error' : 'info');
+                
+                if (currentHealth <= 0) {
+                    log('基地被摧毁！', 'error');
+                    break;
+                }
+            }
+            
+            if (currentHealth > 0) {
+                log('基地防御成功！', 'success');
+            }
+        }
+
+        // 初始化
+        window.onload = function() {
+            log('策略系统测试工具已启动', 'success');
+            log('克制关系：士兵→坦克→工人→士兵', 'info');
+            log('克制攻击伤害: 1.5倍，被克制伤害: 0.7倍', 'info');
+        };
+    </script>
+</body>
+</html>
