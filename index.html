@@ -90,6 +90,27 @@
                     <button id="startGame">开始战斗</button>
                     <button id="pauseGame">暂停</button>
                     <button id="resetGame">重置</button>
+                    
+                    <!-- 时间流速控制 -->
+                    <div class="speed-controls">
+                        <span>游戏速度:</span>
+                        <button class="speed-btn" data-speed="1">1x</button>
+                        <button class="speed-btn active" data-speed="2">2x</button>
+                        <button class="speed-btn" data-speed="3">3x</button>
+                    </div>
+                    
+                    <!-- 升级控制 -->
+                    <div class="upgrade-controls">
+                        <button id="upgradeBase" class="upgrade-btn">
+                            升级基地 <span id="baseLevel">1/3</span>
+                        </button>
+                        <button id="upgradeSoldier" class="upgrade-btn">
+                            升级士兵 <span id="soldierLevel">1/3</span>
+                        </button>
+                        <button id="upgradeTank" class="upgrade-btn">
+                            升级坦克 <span id="tankLevel">1/3</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -108,6 +129,34 @@
                     <div class="stat-item">
                         <span>响应时间:</span>
                         <span id="aiResponse">0.1s</span>
+                    </div>
+                </div>
+
+                <div class="resource-points">
+                    <h3>资源矿点</h3>
+                    <div class="resource-point">
+                        <div class="resource-bar">
+                            <div id="resource-gold-150-100" class="resource-fill" style="width: 100%"></div>
+                        </div>
+                        <span>💰 150,100 金矿: 1000/1000</span>
+                    </div>
+                    <div class="resource-point">
+                        <div class="resource-bar">
+                            <div id="resource-energy-150-500" class="resource-fill" style="width: 100%"></div>
+                        </div>
+                        <span>⚡ 150,500 能量矿: 800/800</span>
+                    </div>
+                    <div class="resource-point">
+                        <div class="resource-bar">
+                            <div id="resource-gold-650-100" class="resource-fill" style="width: 100%"></div>
+                        </div>
+                        <span>💰 650,100 金矿: 1000/1000</span>
+                    </div>
+                    <div class="resource-point">
+                        <div class="resource-bar">
+                            <div id="resource-energy-650-500" class="resource-fill" style="width: 100%"></div>
+                        </div>
+                        <span>⚡ 650,500 能量矿: 800/800</span>
                     </div>
                 </div>
 
@@ -218,5 +267,74 @@
     <script src="js/game.js"></script>
     <script src="js/ai.js"></script>
     <script src="js/ui.js"></script>
+    <script src="enhanced_features_validator.js"></script>
+    
+    <script>
+        // 新增功能事件监听器
+        document.addEventListener('DOMContentLoaded', function() {
+            // 等待游戏引擎初始化
+            setTimeout(() => {
+                const gameEngine = window.gameEngine;
+                if (!gameEngine) return;
+                
+                // 速度控制按钮事件
+                document.querySelectorAll('.speed-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const speed = parseInt(e.target.dataset.speed);
+                        gameEngine.setGameSpeed(speed);
+                    });
+                });
+                
+                // 升级按钮事件
+                const upgradeBaseBtn = document.getElementById('upgradeBase');
+                const upgradeSoldierBtn = document.getElementById('upgradeSoldier');
+                const upgradeTankBtn = document.getElementById('upgradeTank');
+                
+                if (upgradeBaseBtn) {
+                    upgradeBaseBtn.addEventListener('click', () => {
+                        gameEngine.upgradeBase();
+                    });
+                }
+                
+                if (upgradeSoldierBtn) {
+                    upgradeSoldierBtn.addEventListener('click', () => {
+                        gameEngine.upgradeUnitType('soldier');
+                    });
+                }
+                
+                if (upgradeTankBtn) {
+                    upgradeTankBtn.addEventListener('click', () => {
+                        gameEngine.upgradeUnitType('tank');
+                    });
+                }
+                
+                // 动态更新升级按钮状态
+                setInterval(() => {
+                    if (gameEngine.gameState === 'playing') {
+                        // 更新基地升级按钮
+                        if (upgradeBaseBtn) {
+                            const canUpgrade = gameEngine.baseLevel < gameEngine.maxBaseLevel;
+                            const cost = canUpgrade ? 500 * gameEngine.baseLevel : 0;
+                            upgradeBaseBtn.disabled = !canUpgrade || gameEngine.resources.money < cost;
+                            upgradeBaseBtn.title = canUpgrade ? `升级费用: ${cost} 金币` : '已达最高等级';
+                        }
+                        
+                        // 更新单位升级按钮
+                        ['soldier', 'tank'].forEach(unitType => {
+                            const btn = document.getElementById(`upgrade${unitType.charAt(0).toUpperCase() + unitType.slice(1)}`);
+                            if (btn) {
+                                const currentLevel = gameEngine.unitLevels[unitType] || 1;
+                                const canUpgrade = currentLevel < gameEngine.maxUnitLevel;
+                                const cost = canUpgrade ? 300 * currentLevel : 0;
+                                btn.disabled = !canUpgrade || gameEngine.resources.money < cost;
+                                btn.title = canUpgrade ? `升级费用: ${cost} 金币` : '已达最高等级';
+                            }
+                        });
+                    }
+                }, 1000);
+                
+            }, 500);
+        });
+    </script>
 </body>
 </html>

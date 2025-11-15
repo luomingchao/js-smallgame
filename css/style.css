@@ -295,6 +295,90 @@ body {
     margin-top: 10px;
     display: flex;
     gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+/* 时间流速控制 */
+.speed-controls {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 8px;
+    border-radius: 10px;
+}
+
+.speed-controls span {
+    font-size: 0.9rem;
+    color: #00ffff;
+    font-weight: bold;
+}
+
+.speed-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid #555;
+    color: #ffffff;
+    padding: 5px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.8rem;
+    min-width: 35px;
+}
+
+.speed-btn:hover {
+    background: rgba(0, 255, 255, 0.2);
+    border-color: #00ffff;
+}
+
+.speed-btn.active {
+    background: linear-gradient(135deg, #00ffff, #0088cc);
+    color: #000;
+    font-weight: bold;
+}
+
+/* 升级控制 */
+.upgrade-controls {
+    display: flex;
+    gap: 5px;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 8px;
+    border-radius: 10px;
+}
+
+.upgrade-btn {
+    background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+    border: none;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 80px;
+}
+
+.upgrade-btn:hover {
+    background: linear-gradient(135deg, #ff5252, #e53e3e);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(255, 107, 107, 0.3);
+}
+
+.upgrade-btn:disabled {
+    background: #666;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.upgrade-btn span {
+    font-size: 0.7rem;
+    opacity: 0.8;
+    margin-top: 2px;
 }
 
 #startGame, #pauseGame, #resetGame {
@@ -344,6 +428,60 @@ body {
 
 .stat-item:last-child {
     border-bottom: none;
+}
+
+/* 资源点显示 */
+.resource-points {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid #444;
+    border-radius: 10px;
+    padding: 15px;
+}
+
+.resource-points h3 {
+    margin-bottom: 10px;
+    color: #ffaa00;
+    font-size: 1.1rem;
+}
+
+.resource-point {
+    margin-bottom: 10px;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    border: 1px solid #333;
+}
+
+.resource-point span {
+    display: block;
+    font-size: 0.85rem;
+    margin-top: 5px;
+    color: #ffffff;
+}
+
+.resource-bar {
+    width: 100%;
+    height: 8px;
+    background: #333;
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+}
+
+.resource-fill {
+    height: 100%;
+    transition: width 0.3s ease;
+    border-radius: 4px;
+}
+
+/* 金矿资源条 */
+[class*="resource-gold"] .resource-fill {
+    background: linear-gradient(90deg, #ffaa00, #ffff00);
+}
+
+/* 能量矿资源条 */
+[class*="resource-energy"] .resource-fill {
+    background: linear-gradient(90deg, #00aaff, #00ffff);
 }
 
 /* 战斗日志 */

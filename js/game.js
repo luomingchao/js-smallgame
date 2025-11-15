@@ -15,7 +15,25 @@ class GameEngine {
         this.lastFrameTime = 0;
         this.battleLog = [];
         
-        // 新增：关卡系统
+        // 新增：时间流速控制
+        this.gameSpeed = 3; // 1=慢速, 2=普通, 3=快速
+        this.speedMultiplier = { 1: 0.5, 2: 1.0, 3: 2.0 }; // 实际时间倍数
+        
+        // 新增：升级系统
+        this.baseLevel = 1; // 基地等级 1-3
+        this.maxBaseLevel = 3;
+        this.unitLevels = {}; // 单位等级: {type: level}
+        this.maxUnitLevel = 3;
+        
+        // 新增：资源点
+        this.resourcePoints = [
+            { x: 150, y: 100, type: 'gold', amount: 1000, maxAmount: 1000, depleted: false },
+            { x: 150, y: 500, type: 'energy', amount: 800, maxAmount: 800, depleted: false },
+            { x: 650, y: 100, type: 'gold', amount: 1000, maxAmount: 1000, depleted: false },
+            { x: 650, y: 500, type: 'energy', amount: 800, maxAmount: 800, depleted: false }
+        ];
+        
+        // 关卡系统
         this.level = 1;
         this.maxLevel = 5;
         this.levelConfig = {
@@ -147,6 +165,16 @@ class GameEngine {
         
         if (canCreate) {
             const unit = new GameUnit(type, this.playerBase.x + 50, this.playerBase.y, 'player');
+            
+            // 初始化单位等级
+            if (!this.unitLevels[type]) {
+                this.unitLevels[type] = 1;
+            }
+            unit.level = this.unitLevels[type];
+            
+            // 应用等级加成
+            this.applyUnitLevelBonus(unit);
+            
             this.units.push(unit);
             
             if (type === 'worker') {
@@ -157,7 +185,7 @@ class GameEngine {
             this.resources.money -= cost;
             if (energyCost > 0) {
                 this.resources.energy -= energyCost;
-                this.addBattleLog(`使用了 ${energyCost} 能量制造 ${this.getUnitDisplayName(type)}`);
+                this.addBattleLog(`使用了 ${energyCost} 能量制造 ${this.getUnitDisplayName(type)} Lv.${unit.level}`);
             }
             
             this.updateResourceBar();
@@ -313,12 +341,15 @@ class GameEngine {
     update(deltaTime) {
         if (this.gameState !== 'playing') return;
 
+        // 应用时间流速倍率
+        const effectiveDeltaTime = deltaTime * this.speedMultiplier[this.gameSpeed];
+
         // 更新游戏时间
-        this.gameTime += deltaTime / 1000;
+        this.gameTime += effectiveDeltaTime / 1000;
         this.updateTimeDisplay();
 
         // 更新所有单位
-        this.units.forEach(unit => unit.update(deltaTime, this));
+        this.units.forEach(unit => unit.update(effectiveDeltaTime, this));
 
         // 自动目标分配（玩家单位发现敌人时自动攻击）
         this.handleAutoTargeting();
@@ -333,10 +364,13 @@ class GameEngine {
         this.handleBaseDefense();
 
         // 生成资源
-        this.generateResources(deltaTime);
+        this.generateResources(effectiveDeltaTime);
 
         // AI决策
-        this.aiEnemy.update(deltaTime, this);
+        this.aiEnemy.update(effectiveDeltaTime, this);
+
+        // 更新资源采集
+        this.updateWorkerCollection(effectiveDeltaTime);
 
         // 检查胜利条件
         this.checkWinCondition();
@@ -554,7 +588,9 @@ class GameEngine {
         // 检查资源是否足够创建单位
         document.querySelectorAll('.unit-btn').forEach(btn => {
             const cost = parseInt(btn.dataset.cost);
-            btn.disabled = this.resources.money < cost || this.gameState !== 'playing';
+            const unitType = btn.dataset.unit;
+            const energyCost = unitType === 'tank' ? 20 : 0;
+            btn.disabled = this.resources.money < cost || this.resources.energy < energyCost || this.gameState !== 'playing';
         });
         
         // 更新关卡难度颜色
@@ -562,6 +598,52 @@ class GameEngine {
         if (difficultyElement) {
             difficultyElement.className = `level-difficulty ${config.aiLevel}`;
         }
+        
+        // 更新升级系统UI
+        this.updateUpgradeUI();
+        
+        // 更新资源采集显示
+        this.updateResourceDisplay();
+        
+        // 更新时间流速显示
+        this.updateSpeedDisplay();
+    }
+
+    updateUpgradeUI() {
+        // 更新基地等级显示
+        const baseLevelElement = document.getElementById('baseLevel');
+        if (baseLevelElement) {
+            baseLevelElement.textContent = `${this.baseLevel}/3`;
+        }
+        
+        // 更新单位等级显示
+        Object.keys(this.unitLevels).forEach(unitType => {
+            const levelElement = document.getElementById(`${unitType}Level`);
+            if (levelElement) {
+                levelElement.textContent = `${this.unitLevels[unitType]}/3`;
+            }
+        });
+    }
+
+    updateResourceDisplay() {
+        // 更新资源点显示
+        this.resourcePoints.forEach(point => {
+            const pointElement = document.getElementById(`resource-${point.type}-${point.x}-${point.y}`);
+            if (pointElement) {
+                const percentage = (point.amount / point.maxAmount) * 100;
+                pointElement.style.width = `${percentage}%`;
+                pointElement.parentElement.nextElementSibling.textContent = 
+                    `${point.type === 'gold' ? '💰' : '⚡'} ${Math.floor(point.amount)}/${point.maxAmount}`;
+            }
+        });
+    }
+
+    updateSpeedDisplay() {
+        // 更新速度控制按钮状态
+        document.querySelectorAll('.speed-btn').forEach(btn => {
+            const speed = parseInt(btn.dataset.speed);
+            btn.classList.toggle('active', speed === this.gameSpeed);
+        });
     }
 
     handleAIChat(message) {
@@ -805,6 +887,27 @@ class GameEngine {
     }
 
     drawBase(base, color, label) {
+        // 绘制基地防护罩 (仅玩家基地且有防护罩时)
+        if (base === this.playerBase && base.shieldHealth && base.shieldHealth > 0) {
+            const shieldPercent = base.shieldHealth / base.maxShieldHealth;
+            this.ctx.strokeStyle = `rgba(0, 255, 255, ${shieldPercent})`;
+            this.ctx.lineWidth = 4;
+            this.ctx.beginPath();
+            this.ctx.arc(base.x, base.y, 35, 0, Math.PI * 2);
+            this.ctx.stroke();
+            
+            // 绘制防护罩血量条
+            const shieldBarWidth = 60;
+            const shieldBarHeight = 4;
+            const shieldY = base.y + 50;
+            
+            this.ctx.fillStyle = '#003344';
+            this.ctx.fillRect(base.x - shieldBarWidth/2, shieldY, shieldBarWidth, shieldBarHeight);
+            
+            this.ctx.fillStyle = '#00ffff';
+            this.ctx.fillRect(base.x - shieldBarWidth/2, shieldY, shieldBarWidth * shieldPercent, shieldBarHeight);
+        }
+        
         // 绘制基地圆圈
         this.ctx.fillStyle = color;
         this.ctx.beginPath();
@@ -822,16 +925,65 @@ class GameEngine {
         this.ctx.textAlign = 'center';
         this.ctx.fillText(label, base.x, base.y + 5);
         
+        // 绘制基地等级显示 (玩家基地)
+        if (base === this.playerBase) {
+            this.ctx.fillStyle = '#ffff00';
+            this.ctx.font = 'bold 12px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText(`Lv.${this.baseLevel}`, base.x, base.y - 35);
+        }
+        
         // 绘制血量条
-        const healthPercent = base.health / 1000;
+        const healthPercent = base.health / (1000 + (this.baseLevel - 1) * 200);
         const barWidth = 50;
         const barHeight = 6;
+        const barY = base === this.playerBase ? base.y + 70 : base.y + 35; // 避开防护罩血量条
         
         this.ctx.fillStyle = '#333333';
-        this.ctx.fillRect(base.x - barWidth/2, base.y + 35, barWidth, barHeight);
+        this.ctx.fillRect(base.x - barWidth/2, barY, barWidth, barHeight);
         
         this.ctx.fillStyle = healthPercent > 0.5 ? '#44ff44' : healthPercent > 0.25 ? '#ffaa00' : '#ff4444';
-        this.ctx.fillRect(base.x - barWidth/2, base.y + 35, barWidth * healthPercent, barHeight);
+        this.ctx.fillRect(base.x - barWidth/2, barY, barWidth * healthPercent, barHeight);
+    }
+
+    drawResourcePoints() {
+        // 绘制资源点
+        this.resourcePoints.forEach(point => {
+            if (point.depleted) {
+                // 枯竭的资源点
+                this.ctx.fillStyle = '#666666';
+                this.ctx.beginPath();
+                this.ctx.arc(point.x, point.y, 15, 0, Math.PI * 2);
+                this.ctx.fill();
+            } else {
+                // 活跃的资源点
+                const color = point.type === 'gold' ? '#ffaa00' : '#00aaff';
+                const symbol = point.type === 'gold' ? '💰' : '⚡';
+                
+                // 绘制资源点圆圈
+                this.ctx.fillStyle = color;
+                this.ctx.beginPath();
+                this.ctx.arc(point.x, point.y, 15, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // 绘制边框
+                this.ctx.strokeStyle = '#ffffff';
+                this.ctx.lineWidth = 1;
+                this.ctx.stroke();
+                
+                // 绘制符号
+                this.ctx.fillStyle = '#000000';
+                this.ctx.font = 'bold 12px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText(symbol, point.x, point.y + 4);
+                
+                // 绘制剩余量
+                const percent = point.amount / point.maxAmount;
+                this.ctx.fillStyle = percent < 0.2 ? '#ff4444' : '#ffffff';
+                this.ctx.font = 'bold 8px Arial';
+                this.ctx.fillText(`${Math.floor(percent * 100)}%`, point.x, point.y + 25);
+            }
+        });
     }
 
     drawResourcePoints() {
@@ -965,6 +1117,180 @@ class GameEngine {
                         unit.setTarget(nearestPlayer);
                     }
                 });
+            }
+        }
+    }
+
+    // ===== 新增功能方法 =====
+    
+    applyUnitLevelBonus(unit) {
+        // 应用单位等级加成
+        if (unit.level > 1) {
+            const bonusMultiplier = 1 + (unit.level - 1) * 0.2; // 每级+20%
+            
+            switch (unit.type) {
+                case 'soldier':
+                    unit.damage *= bonusMultiplier;
+                    unit.maxHealth *= bonusMultiplier;
+                    unit.health = unit.maxHealth;
+                    break;
+                case 'tank':
+                    unit.damage *= bonusMultiplier;
+                    unit.maxHealth *= bonusMultiplier * 1.3; // 坦克血量加成更多
+                    unit.health = unit.maxHealth;
+                    break;
+                case 'worker':
+                    unit.collectRate *= bonusMultiplier; // 采集速度
+                    break;
+            }
+        }
+    }
+
+    updateWorkerCollection(deltaTime) {
+        // 更新工人采集资源
+        this.workerUnits.forEach(worker => {
+            if (worker.health > 0 && worker.target && worker.target.type) {
+                // 检查是否在资源点
+                const resourcePoint = this.resourcePoints.find(point => 
+                    point.depleted === false && 
+                    Math.sqrt(Math.pow(worker.x - point.x, 2) + Math.pow(worker.y - point.y, 2)) < 20
+                );
+                
+                if (resourcePoint) {
+                    // 采集资源
+                    const collectAmount = worker.collectRate * deltaTime / 1000;
+                    const actualCollect = Math.min(collectAmount, resourcePoint.amount);
+                    
+                    resourcePoint.amount -= actualCollect;
+                    if (resourcePoint.type === 'gold') {
+                        this.resources.money += actualCollect;
+                        // 显示采集效果
+                        this.showResourceCollection(worker.x, worker.y, actualCollect, 'gold');
+                    } else {
+                        this.resources.energy += actualCollect * 0.5; // 能量采集效率较低
+                        this.showResourceCollection(worker.x, worker.y, actualCollect * 0.5, 'energy');
+                    }
+                    
+                    if (resourcePoint.amount <= 0) {
+                        resourcePoint.depleted = true;
+                        this.addBattleLog(`${resourcePoint.type === 'gold' ? '金矿' : '能量矿'}枯竭！`);
+                    }
+                }
+            }
+        });
+    }
+
+    showResourceCollection(x, y, amount, type) {
+        // 在游戏画布上显示资源采集效果
+        const ctx = this.ctx;
+        ctx.save();
+        
+        const color = type === 'gold' ? '#ffff00' : '#00ffff';
+        ctx.fillStyle = color;
+        ctx.font = 'bold 10px Arial';
+        ctx.textAlign = 'center';
+        
+        const displayAmount = Math.floor(amount);
+        if (displayAmount > 0) {
+            ctx.fillText(`+${displayAmount}`, x, y - 30);
+        }
+        
+        ctx.restore();
+    }
+
+    setGameSpeed(speed) {
+        // 设置游戏速度
+        if (speed >= 1 && speed <= 3) {
+            this.gameSpeed = speed;
+            this.updateSpeedDisplay();
+            this.addBattleLog(`游戏速度设置为 ${speed}x`);
+        }
+    }
+
+    upgradeBase() {
+        // 升级基地
+        if (this.baseLevel < this.maxBaseLevel) {
+            const upgradeCost = 500 * this.baseLevel; // 升级费用递增
+            
+            if (this.resources.money >= upgradeCost) {
+                this.resources.money -= upgradeCost;
+                this.baseLevel++;
+                
+                // 基地升级效果
+                if (this.baseLevel === 3) {
+                    this.playerBase.shieldHealth = 500;
+                    this.playerBase.maxShieldHealth = 500;
+                    this.addBattleLog('🏰 基地升级到3级！获得防护罩系统！');
+                } else {
+                    this.addBattleLog(`🏰 基地升级到${this.baseLevel}级！`);
+                }
+                
+                // 恢复基地血量
+                this.playerBase.health = Math.min(this.playerBase.health + 200, 1000 + (this.baseLevel - 1) * 200);
+                
+                this.updateUpgradeUI();
+                return true;
+            } else {
+                this.addBattleLog(`❌ 升级失败！需要 ${upgradeCost} 金币`);
+                return false;
+            }
+        }
+        return false;
+    }
+
+    upgradeUnitType(unitType) {
+        // 升级单位类型
+        const currentLevel = this.unitLevels[unitType] || 1;
+        if (currentLevel >= this.maxUnitLevel) return false;
+        
+        const upgradeCost = 300 * currentLevel; // 升级费用递增
+        
+        if (this.resources.money >= upgradeCost) {
+            this.resources.money -= upgradeCost;
+            this.unitLevels[unitType] = currentLevel + 1;
+            
+            // 更新所有该类型的单位
+            this.units.forEach(unit => {
+                if (unit.type === unitType && unit.faction === 'player') {
+                    const oldLevel = unit.level;
+                    unit.level = currentLevel + 1;
+                    this.applyUnitLevelBonus(unit);
+                }
+            });
+            
+            this.addBattleLog(`⚔️ ${this.getUnitDisplayName(unitType)} 升级到 Lv.${currentLevel + 1}`);
+            this.updateUpgradeUI();
+            return true;
+        } else {
+            this.addBattleLog(`❌ 升级失败！需要 ${upgradeCost} 金币`);
+            return false;
+        }
+    }
+
+    applyBaseDefense() {
+        // 应用基地防御机制
+        // 检查基地防护罩
+        if (this.playerBase.shieldHealth && this.playerBase.shieldHealth > 0) {
+            return 'shield';
+        }
+        return 'health';
+    }
+
+    takeBaseDamage(damage) {
+        // 基地受到伤害时优先消耗防护罩
+        const defenseType = this.applyBaseDefense();
+        
+        if (defenseType === 'shield') {
+            this.playerBase.shieldHealth -= damage;
+            if (this.playerBase.shieldHealth <= 0) {
+                this.playerBase.shieldHealth = 0;
+                this.addBattleLog('🛡️ 防护罩被击破！');
+            }
+        } else {
+            this.playerBase.health -= damage;
+            if (this.playerBase.health <= 0) {
+                this.gameState = 'gameOver';
+                this.addBattleLog('💀 基地被摧毁！游戏结束！');
             }
         }
     }
@@ -1196,18 +1522,43 @@ class GameUnit {
         const now = Date.now();
         if (now - this.lastAttackTime >= this.attackCooldown) {
             const damage = this.calculateAttackDamage(target);
-            target.health -= damage;
             
-            // 记录攻击日志
-            if (this.game && this.game.addBattleLog) {
-                const attackerName = this.faction === 'player' ? '玩家' : 'AI';
-                const targetName = target.type ? 
-                    this.game.getUnitDisplayName(target.type) : '敌方基地';
-                const relation = this.getTypeRelation(this.type, target.type);
-                const damageInfo = relation === 'counter' ? ' (克制攻击!)' : 
-                                 relation === 'vulnerable' ? ' (被克制...)' : '';
+            // 检查是否攻击基地
+            if (target.type && (target.type === 'playerBase' || target.type === 'enemyBase')) {
+                // 基地受到伤害时使用基地防御机制
+                if (this.game && this.game.takeBaseDamage) {
+                    if (target.type === 'playerBase') {
+                        // 攻击玩家基地
+                        this.game.takeBaseDamage(damage);
+                    } else {
+                        // 攻击敌方基地
+                        target.health -= damage;
+                        if (target.health <= 0) {
+                            this.game.gameState = 'gameOver';
+                            this.game.addBattleLog('🎉 恭喜！您摧毁了敌方基地！胜利！');
+                        }
+                    }
+                    
+                    // 记录攻击日志
+                    if (this.game && this.game.addBattleLog) {
+                        const attackerName = this.faction === 'player' ? '玩家' : 'AI';
+                        this.game.addBattleLog(`${attackerName} ${this.game.getUnitDisplayName(this.type)} 攻击基地，造成 ${damage} 伤害`);
+                    }
+                }
+            } else {
+                // 攻击单位
+                target.health -= damage;
                 
-                this.game.addBattleLog(`${attackerName} ${this.game.getUnitDisplayName(this.type)} 攻击 ${targetName}，造成 ${damage} 伤害${damageInfo}`);
+                // 记录攻击日志
+                if (this.game && this.game.addBattleLog) {
+                    const attackerName = this.faction === 'player' ? '玩家' : 'AI';
+                    const targetName = this.game.getUnitDisplayName(target.type);
+                    const relation = this.getTypeRelation(this.type, target.type);
+                    const damageInfo = relation === 'counter' ? ' (克制攻击!)' : 
+                                     relation === 'vulnerable' ? ' (被克制...)' : '';
+                    
+                    this.game.addBattleLog(`${attackerName} ${this.game.getUnitDisplayName(this.type)} 攻击 ${targetName}，造成 ${damage} 伤害${damageInfo}`);
+                }
             }
             
             this.lastAttackTime = now;

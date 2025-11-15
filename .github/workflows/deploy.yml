@@ -1,0 +1,56 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        
+    - name: Build project
+      run: |
+        echo "构建AI指挥官游戏..."
+        # 添加构建步骤（如果需要）
+        echo "构建完成"
+        
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./
+        force_orphan: true
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: github-pages
+        path: ./
+
+  # 备用部署作业
+  deploy-fallback:
+    needs: build-and-deploy
+    runs-on: ubuntu-latest
+    if: failure()
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+      
+    - name: Deploy with fallback
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./
+        publish_branch: gh-pages
