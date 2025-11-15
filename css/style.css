@@ -20,9 +20,11 @@ body {
     max-width: 1400px;
     margin: 0 auto;
     padding: 10px;
-    height: 100vh;
+    min-height: 100vh;
+    max-height: 100vh;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 /* 游戏标题 */
@@ -130,6 +132,8 @@ body {
     flex-direction: column;
     gap: 10px;
     min-height: 0;
+    overflow-y: auto;
+    padding-bottom: 10px;
 }
 
 /* 关卡信息栏 */
@@ -293,10 +297,17 @@ body {
 
 .map-controls {
     margin-top: 10px;
+    margin-bottom: 80px;
     display: flex;
     gap: 10px;
     flex-wrap: wrap;
     align-items: center;
+    position: relative;
+    z-index: 10;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 15px;
+    border-radius: 10px;
+    border: 1px solid #00aaff;
 }
 
 /* 时间流速控制 */
@@ -521,10 +532,14 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: 10px 15px;
-    background: rgba(0, 0, 0, 0.4);
+    background: rgba(0, 0, 0, 0.6);
     border-radius: 8px;
-    margin-top: 10px;
     border: 1px solid #555;
+    height: 60px;
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    margin-top: auto;
 }
 
 .footer-info {
@@ -670,6 +685,22 @@ body {
         flex-direction: column;
         gap: 10px;
         text-align: center;
+    }
+    
+    .map-controls {
+        margin-bottom: 100px;
+        gap: 8px;
+        padding: 10px;
+    }
+    
+    .game-footer {
+        height: 70px;
+        padding: 8px 10px;
+    }
+    
+    .footer-info {
+        gap: 10px;
+        font-size: 0.8rem;
     }
     
     .footer-info {
